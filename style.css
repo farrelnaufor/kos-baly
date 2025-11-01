@@ -83,6 +83,27 @@ body {
     gap: 10px;
 }
 
+/* Owner link styling */
+.btn-owner-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: rgba(255, 212, 72, 0.2);
+    color: #FFD448;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    font-size: 18px;
+}
+
+.btn-owner-link:hover {
+    background-color: #FFD448;
+    color: #1a1a1a;
+    transform: scale(1.1);
+}
+
 /* Styling untuk user profile */
 .user-profile {
     display: flex;
