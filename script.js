@@ -1,9 +1,106 @@
-document.addEventListener('DOMContentLoaded', function () {
-    // Data kamar
-    const roomData = {
+document.addEventListener('DOMContentLoaded', async function () {
+    let roomData = {
         type1: { name: 'Kamar Type 1', price: 'Rp 800.000', priceValue: 800000, image: 'https://picsum.photos/seed/kamar1/1200/600.jpg', type: 'type1' },
         type2: { name: 'Kamar Type 2', price: 'Rp 700.000', priceValue: 700000, image: 'https://picsum.photos/seed/kamar2/1200/600.jpg', type: 'type2' }
     };
+
+    async function loadRoomDataFromDatabase() {
+        try {
+            if (!window.supabase) return;
+
+            const { data: rooms, error } = await supabase
+                .from('rooms')
+                .select('*')
+                .eq('is_available', true)
+                .order('room_type', { ascending: true });
+
+            if (error) {
+                console.error('Error loading rooms from database:', error);
+                return;
+            }
+
+            if (rooms && rooms.length > 0) {
+                const type1Rooms = rooms.filter(r => r.room_type === 'Type 1');
+                const type2Rooms = rooms.filter(r => r.room_type === 'Type 2');
+
+                if (type1Rooms.length > 0) {
+                    const room = type1Rooms[0];
+                    roomData.type1 = {
+                        name: 'Kamar Type 1',
+                        price: `Rp ${room.price.toLocaleString('id-ID')}`,
+                        priceValue: room.price,
+                        image: 'https://picsum.photos/seed/kamar1/1200/600.jpg',
+                        type: 'type1',
+                        facilities: room.facilities
+                    };
+                }
+
+                if (type2Rooms.length > 0) {
+                    const room = type2Rooms[0];
+                    roomData.type2 = {
+                        name: 'Kamar Type 2',
+                        price: `Rp ${room.price.toLocaleString('id-ID')}`,
+                        priceValue: room.price,
+                        image: 'https://picsum.photos/seed/kamar2/1200/600.jpg',
+                        type: 'type2',
+                        facilities: room.facilities
+                    };
+                }
+
+                console.log('Room data loaded from database:', roomData);
+            }
+        } catch (err) {
+            console.error('Error in loadRoomDataFromDatabase:', err);
+        }
+    }
+
+    await loadRoomDataFromDatabase();
+
+    // Fungsi untuk mengecek ketersediaan kamar real-time
+    async function checkRoomAvailability(roomType, checkIn, checkOut) {
+        try {
+            if (!window.supabase) return { available: true, count: 0 };
+
+            const { data: rooms, error } = await supabase
+                .from('rooms')
+                .select('id, is_available')
+                .eq('room_type', roomType)
+                .eq('is_available', true);
+
+            if (error) {
+                console.error('Error checking room availability:', error);
+                return { available: true, count: 0 };
+            }
+
+            if (!rooms || rooms.length === 0) {
+                return { available: false, count: 0 };
+            }
+
+            const { data: bookings, error: bookingError } = await supabase
+                .from('bookings')
+                .select('room_id')
+                .in('room_id', rooms.map(r => r.id))
+                .eq('status', 'active')
+                .gte('check_out', checkIn)
+                .lte('check_in', checkOut);
+
+            if (bookingError) {
+                console.error('Error checking bookings:', bookingError);
+                return { available: true, count: rooms.length };
+            }
+
+            const bookedRoomIds = bookings ? bookings.map(b => b.room_id) : [];
+            const availableRooms = rooms.filter(r => !bookedRoomIds.includes(r.id));
+
+            return {
+                available: availableRooms.length > 0,
+                count: availableRooms.length
+            };
+        } catch (err) {
+            console.error('Error in checkRoomAvailability:', err);
+            return { available: true, count: 0 };
+        }
+    }
 
     // Cached elements
     const checkInEl = document.getElementById('check-in');
@@ -13,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const durationEl = document.getElementById('duration');
     const totalPriceEl = document.getElementById('total-price');
     const roomTypeEl = document.getElementById('room-type');
-    const roomPriceEl = document.getElementById('price-value'); // perbaikan: sesuai id di index.html
+    const roomPriceEl = document.getElementById('price-value');
     const heroSection = document.getElementById('hero');
     const btnBookNow = document.getElementById('btn-book-now');
     const btnWriteReview = document.querySelector('.btn-write-review');
@@ -288,8 +385,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return `Rp ${value.toLocaleString('id-ID')}`;
     }
 
-    function calculateAndRender() {
-        // ensure selected room is normalized and UI consistent
+    async function calculateAndRender() {
         const roomKey = getSelectedRoomKey();
         renderRoomUI(roomKey);
 
@@ -325,7 +421,43 @@ document.addEventListener('DOMContentLoaded', function () {
             setTimeout(() => totalPriceEl.style.transform = '', 120);
         }
 
+        if (checkInStr && checkOutStr) {
+            const availability = await checkRoomAvailability(room.name, checkInStr, checkOutStr);
+            updateAvailabilityDisplay(availability);
+        }
+
         return { months, totalPrice };
+    }
+
+    function updateAvailabilityDisplay(availability) {
+        let availabilityIndicator = document.getElementById('availability-indicator');
+        if (!availabilityIndicator) {
+            availabilityIndicator = document.createElement('div');
+            availabilityIndicator.id = 'availability-indicator';
+            availabilityIndicator.style.marginTop = '10px';
+            availabilityIndicator.style.padding = '8px';
+            availabilityIndicator.style.borderRadius = '5px';
+            availabilityIndicator.style.textAlign = 'center';
+            availabilityIndicator.style.fontSize = '14px';
+            availabilityIndicator.style.fontWeight = '500';
+
+            const bookingControls = document.querySelector('.booking-controls');
+            if (bookingControls) {
+                bookingControls.appendChild(availabilityIndicator);
+            }
+        }
+
+        if (availability.available) {
+            availabilityIndicator.style.backgroundColor = 'rgba(76, 175, 80, 0.2)';
+            availabilityIndicator.style.color = '#4CAF50';
+            availabilityIndicator.textContent = availability.count > 0
+                ? `Tersedia ${availability.count} kamar untuk tanggal yang dipilih`
+                : 'Kamar tersedia';
+        } else {
+            availabilityIndicator.style.backgroundColor = 'rgba(244, 67, 54, 0.2)';
+            availabilityIndicator.style.color = '#F44336';
+            availabilityIndicator.textContent = 'Tidak tersedia untuk tanggal yang dipilih';
+        }
     }
 
     // Event bindings
@@ -357,7 +489,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Book now handler -> redirect to payment.html with params
     if (btnBookNow) {
-        btnBookNow.addEventListener('click', function (e) {
+        btnBookNow.addEventListener('click', async function (e) {
             e.preventDefault();
             const res = calculateAndRender();
             if (!res) {
@@ -368,6 +500,18 @@ document.addEventListener('DOMContentLoaded', function () {
             const room = roomData[roomKey];
             const checkInStr = checkInEl ? checkInEl.value : '';
             const checkOutStr = checkOutEl ? checkOutEl.value : '';
+
+            const availability = await checkRoomAvailability(room.name, checkInStr, checkOutStr);
+
+            if (!availability.available) {
+                alert('Maaf, kamar tidak tersedia untuk tanggal yang dipilih. Silakan pilih tanggal lain atau tipe kamar yang berbeda.');
+                return;
+            }
+
+            if (availability.count > 0) {
+                console.log(`Tersedia ${availability.count} kamar untuk booking ini`);
+            }
+
             const params = new URLSearchParams({
                 room_type: room.name,
                 price: res.totalPrice.toString(),

@@ -17,26 +17,50 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Supabase client tidak tersedia');
                 return { success: false, error: 'Supabase client tidak tersedia' };
             }
-            
+
             // Pastikan data sesuai dengan struktur tabel yang ada
             // Jika ada field yang tidak sesuai, hapus dari objek orderData
             // atau sesuaikan dengan nama field di tabel
-            
+
             // Insert order data ke tabel 'orders'
             const { data, error } = await supabase
                 .from('orders')
                 .insert([orderData])
                 .select();
-                
+
             if (error) {
                 console.error('Error menyimpan order ke Supabase:', error);
                 return { success: false, error: error.message };
             }
-            
+
             console.log('Order Berhasil Dibuat!', data);
             return { success: true, data };
         } catch (err) {
             console.error('Exception saat menyimpan order:', err);
+            return { success: false, error: err.message };
+        }
+    }
+
+    // Fungsi untuk update status ketersediaan kamar
+    async function updateRoomAvailability(roomType, available) {
+        try {
+            if (!supabase) return { success: false, error: 'Supabase client tidak tersedia' };
+
+            const { data, error } = await supabase
+                .from('rooms')
+                .update({ is_available: available })
+                .eq('room_type', roomType)
+                .select()
+                .limit(1);
+
+            if (error) {
+                console.error('Error updating room availability:', error);
+                return { success: false, error: error.message };
+            }
+
+            return { success: true, data };
+        } catch (err) {
+            console.error('Exception updating room availability:', err);
             return { success: false, error: err.message };
         }
     }

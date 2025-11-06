@@ -132,13 +132,100 @@ function createPaymentUrl(bookingData, roomName) {
   return `pembayaran.html?room=${encodeURIComponent(roomName)}&checkIn=${encodeURIComponent(bookingData.checkIn)}&checkOut=${encodeURIComponent(bookingData.checkOut)}&duration=${bookingData.duration}&price=${encodeURIComponent(bookingData.totalPrice)}`;
 }
 
+// ==== REVIEWS ==== //
+async function getReviews() {
+  const { data, error } = await window.supabase
+    .from("reviews")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  return { data, error };
+}
+
+async function createReview(review) {
+  const { data, error } = await window.supabase
+    .from("reviews")
+    .insert([review])
+    .select();
+
+  return { data, error };
+}
+
+// ==== ORDERS ==== //
+async function getOrders() {
+  const { data, error } = await window.supabase
+    .from("orders")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  return { data, error };
+}
+
+async function updateOrder(orderId, updates) {
+  const { data, error } = await window.supabase
+    .from("orders")
+    .update(updates)
+    .eq("id", orderId)
+    .select();
+
+  return { data, error };
+}
+
+// ==== ROOMS ==== //
+async function updateRoom(roomId, updates) {
+  const { data, error } = await window.supabase
+    .from("rooms")
+    .update(updates)
+    .eq("id", roomId)
+    .select();
+
+  return { data, error };
+}
+
+async function deleteRoom(roomId) {
+  const { data, error } = await window.supabase
+    .from("rooms")
+    .delete()
+    .eq("id", roomId);
+
+  return { data, error };
+}
+
+// ==== BOOKINGS ==== //
+async function getBookings() {
+  const { data, error } = await window.supabase
+    .from("bookings")
+    .select("*, rooms(*), renter:profiles(full_name, email, phone)")
+    .order("created_at", { ascending: false });
+
+  return { data, error };
+}
+
+async function updateBooking(bookingId, updates) {
+  const { data, error } = await window.supabase
+    .from("bookings")
+    .update(updates)
+    .eq("id", bookingId)
+    .select();
+
+  return { data, error };
+}
+
 window.kostApi = {
   getAllProperties,
   createProperty,
   getRoomsByProperty,
   createRoom,
+  updateRoom,
+  deleteRoom,
   createBooking,
+  getBookings,
+  updateBooking,
   getBookingsByUser,
+  getReviews,
+  createReview,
+  getOrders,
+  updateOrder,
   calculateBookingDetails,
   saveBookingData,
   getBookingData,

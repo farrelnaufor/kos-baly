@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     let allRooms = [];
     let allBookings = [];
     let allOrders = [];
+    let allReviews = [];
     let rentalChart = null;
     let roomStatusChart = null;
 
@@ -69,9 +70,24 @@ document.addEventListener('DOMContentLoaded', async function() {
         await loadRooms();
         await loadBookings();
         await loadOrders();
+        await loadReviews();
         updateStats();
         renderCharts();
         checkExpiringRentals();
+    }
+
+    async function loadReviews() {
+        const { data, error } = await supabase
+            .from('reviews')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Error loading reviews:', error);
+            return;
+        }
+
+        allReviews = data || [];
     }
 
     async function loadRooms() {
@@ -144,6 +160,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         document.getElementById('occupied-rooms').textContent = occupiedRooms;
         document.getElementById('available-rooms').textContent = availableRooms;
         document.getElementById('monthly-income').textContent = formatCurrency(monthlyIncome);
+
+        const averageRating = calculateAverageRating(allReviews);
+        console.log(`Average rating: ${averageRating} dari ${allReviews.length} ulasan`);
+    }
+
+    function calculateAverageRating(reviews) {
+        if (!reviews || reviews.length === 0) return 0;
+        const sum = reviews.reduce((total, review) => total + parseInt(review.rating), 0);
+        return (sum / reviews.length).toFixed(1);
     }
 
     function renderCharts() {
@@ -599,6 +624,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     };
 
     window.completeBooking = async function(bookingId) {
+        const booking = allBookings.find(b => b.id === bookingId);
+        if (!booking) return;
+
         const { error } = await supabase
             .from('bookings')
             .update({ status: 'completed' })
@@ -609,11 +637,101 @@ document.addEventListener('DOMContentLoaded', async function() {
             return;
         }
 
+        await supabase
+            .from('rooms')
+            .update({ is_available: true })
+            .eq('id', booking.room_id);
+
         alert('Booking berhasil diselesaikan!');
         await loadDashboardData();
     };
 
     window.confirmOrder = async function(orderId) {
+        const order = allOrders.find(o => o.id === orderId);
+        if (!order) return;
+
+        const availableRoom = allRooms.find(r =>
+            r.room_type === order.room_type &&
+            r.is_available &&
+            !allBookings.some(b => b.room_id === r.id && b.status === 'active')
+        );
+
+        if (!availableRoom) {
+            alert('Tidak ada kamar tersedia untuk tipe kamar ini.');
+            return;
+        }
+
+        const { data: renterData } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('email', order.email)
+            .single();
+
+        let renterId = renterData?.id;
+
+        if (!renterId) {
+            const { data: newRenter, error: renterError } = await supabase.auth.signUp({
+                email: order.email,
+                password: Math.random().toString(36).slice(-8) + 'Aa1!',
+                options: {
+                    data: {
+                        full_name: order.name,
+                        phone: order.phone,
+                        role: 'renter'
+                    }
+                }
+            });
+
+            if (renterError && !renterError.message.includes('already registered')) {
+                console.error('Error creating renter:', renterError);
+            }
+
+            if (newRenter?.user) {
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .upsert([{
+                        id: newRenter.user.id,
+                        full_name: order.name,
+                        email: order.email,
+                        phone: order.phone,
+                        role: 'renter'
+                    }], { onConflict: 'id' });
+
+                if (profileError) {
+                    console.error('Error creating profile:', profileError);
+                }
+                renterId = newRenter.user.id;
+            }
+        }
+
+        if (!renterId) {
+            alert('Gagal membuat akun penyewa.');
+            return;
+        }
+
+        const { error: bookingError } = await supabase
+            .from('bookings')
+            .insert([{
+                room_id: availableRoom.id,
+                renter_id: renterId,
+                check_in: order.check_in,
+                check_out: order.check_out,
+                total_price: order.total_payment,
+                duration_months: order.duration,
+                payment_status: 'paid',
+                status: 'active'
+            }]);
+
+        if (bookingError) {
+            alert('Gagal membuat booking: ' + bookingError.message);
+            return;
+        }
+
+        await supabase
+            .from('rooms')
+            .update({ is_available: false })
+            .eq('id', availableRoom.id);
+
         const { error } = await supabase
             .from('orders')
             .update({ status: 'confirmed' })
@@ -624,8 +742,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             return;
         }
 
-        alert('Pesanan berhasil dikonfirmasi!');
-        await loadOrders();
+        alert('Pesanan berhasil dikonfirmasi dan booking telah dibuat!');
+        await loadDashboardData();
     };
 
     window.cancelOrder = async function(orderId) {
@@ -826,5 +944,44 @@ document.addEventListener('DOMContentLoaded', async function() {
         document.body.removeChild(link);
     }
 
+    function setupRealtimeSubscriptions() {
+        supabase
+            .channel('dashboard-updates')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'rooms'
+            }, payload => {
+                console.log('Room changed:', payload);
+                loadDashboardData();
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'bookings'
+            }, payload => {
+                console.log('Booking changed:', payload);
+                loadDashboardData();
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'orders'
+            }, payload => {
+                console.log('Order changed:', payload);
+                loadOrders();
+            })
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'reviews'
+            }, payload => {
+                console.log('New review:', payload);
+                loadReviews();
+            })
+            .subscribe();
+    }
+
+    setupRealtimeSubscriptions();
     checkAuth();
 });
