@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Owner</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="logo">Kost BaLy - Owner</div>
+    <div class="nav-actions">
+      <a href="index.html" class="btn-login">Kembali</a>
+    </div>
+  </nav>
+
+  <main style="padding: 30px 5% 60px; color: #fff;">
+    <h1 style="margin-bottom: 20px;">Dashboard</h1>
+    <div id="summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 30px;"></div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+      <section>
+        <h2 style="margin-bottom: 12px;">Orders Terbaru</h2>
+        <table id="orders-table" style="width: 100%; border-collapse: collapse; background: #1f1f1f; border-radius: 8px; overflow: hidden;">
+          <thead style="background: #2a2a2a;">
+            <tr>
+              <th style="padding: 10px; text-align: left;">Order</th>
+              <th style="padding: 10px; text-align: left;">Room Type</th>
+              <th style="padding: 10px; text-align: left;">Total</th>
+              <th style="padding: 10px; text-align: left;">Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+      <section>
+        <h2 style="margin-bottom: 12px;">Booking Aktif</h2>
+        <table id="bookings-table" style="width: 100%; border-collapse: collapse; background: #1f1f1f; border-radius: 8px; overflow: hidden;">
+          <thead style="background: #2a2a2a;">
+            <tr>
+              <th style="padding: 10px; text-align: left;">Room</th>
+              <th style="padding: 10px; text-align: left;">Durasi</th>
+              <th style="padding: 10px; text-align: left;">Total</th>
+              <th style="padding: 10px; text-align: left;">Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </div>
+
+    <div style="margin-top: 30px; display: flex; gap: 12px;">
+      <button id="btn-seed" class="btn-login">Seed Data Demo</button>
+      <button id="btn-logout" class="btn-logout">Logout</button>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabaseClient.js"></script>
+  <script src="seed-dashboard-data.js"></script>
+  <script src="owner-dashboard.js"></script>
+</body>
+</html>
